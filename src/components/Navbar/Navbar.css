@@ -1,0 +1,53 @@
+.navbar {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #333;
+  color: #fff;
+  gap: 4rem;
+}
+
+.center-space {
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+}
+
+.left-content-item {
+  padding: 8px;
+  background-color: #555;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.left-content > * {
+  margin-right: 4px;
+}
+
+/* Remove margin from the last item to avoid extra spacing */
+.left-content > *:last-child {
+  margin-right: 0;
+}
+
+.connect-button {
+  padding: 8px;
+  background-color: #555;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+button:hover {
+  background-color: #777;
+}
+
+.display-content {
+  flex-basis: 40%; /* Adjust the width of the content display area as needed */
+}
