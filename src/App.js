@@ -1,11 +1,12 @@
 import "./App.css";
 import Navbar from "./components/Navbar/Navbar";
+import SwapBox from "./components/Swap-box/swapBox";
 
 function App() {
   return (
     <div className="App">
       <Navbar />
-      <h1>Test lol</h1>
+      <SwapBox />
     </div>
   );
 }
