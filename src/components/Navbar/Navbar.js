@@ -1,6 +1,6 @@
 import React from "react";
 import { useState, useEffect, useContext } from "react";
-import { Link } from "react-router-dom";
+import { MetaMaskContext } from "../../contexts/MetaMask";
 
 // styles
 import "./Navbar.css";
@@ -16,6 +16,12 @@ export default function Navbar() {
 
   const [account, setAccount] = useState("");
   const [connected, setConnected] = useState(false);
+  const context = useContext(MetaMaskContext);
+
+  const shortAddress = (address) =>
+    address.slice(0, 6) + "..." + address.slice(-4);
+
+  console.log(context);
 
   return (
     <div className="navbar">
@@ -32,9 +38,17 @@ export default function Navbar() {
       </div>
 
       <div className="right-content">
-        <button className="connect-button" onClick={() => {}}>
-          Connect
-        </button>
+        {context.status === "not_connected" && (
+          <button className="connect-button" onClick={context.connect}>
+            Connect
+          </button>
+        )}
+
+        {context.status === "connected" && (
+          <button className="connect-button" onClick={() => {}}>
+            {shortAddress(context.account)}
+          </button>
+        )}
       </div>
     </div>
   );

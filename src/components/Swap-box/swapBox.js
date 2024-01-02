@@ -18,7 +18,7 @@ export default function SwapBox() {
       <div className="swap-container">
         <div className="swap-header">
           <span>Swap</span>
-          <span>0.20% slippage</span>
+          {/* <span>0.20% slippage</span> */}
         </div>
         <div className="swap-body">
           <div className="swap-input-container">
@@ -49,8 +49,8 @@ export default function SwapBox() {
               placeholder="Enter an amount"
             />
             <select
-              value={fromCurrency}
-              onChange={(e) => setFromCurrency(e.target.value)}
+              value={toCurrency}
+              onChange={(e) => setToCurrency(e.target.value)}
               className="swap-dropdown"
             >
               <option>ETH</option>
