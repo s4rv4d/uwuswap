@@ -1,0 +1,67 @@
+.swap-container {
+  background: #9d93f826;
+  border-radius: 10px;
+  padding: 20px;
+  width: 300px;
+  color: white;
+  font-family: Arial, sans-serif;
+  border: 1px solid #9d93f866;
+}
+
+.swap-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.swap-body {
+  display: grid;
+  row-gap: 10px;
+}
+
+.swap-input-container {
+  display: flex;
+  justify-content: space-between; /* This will place space between the flex items */
+  align-items: center; /* This will vertically center the flex items in the container */
+  gap: 10px;
+}
+
+.swap-input {
+  background: #333;
+  border: none;
+  border-radius: 5px;
+  padding: 10px;
+  color: white;
+  flex: 1;
+  min-width: 0;
+}
+
+.swap-dropdown {
+  background: #333;
+  border: none;
+  border-radius: 5px;
+  padding: 10px;
+  color: white;
+  max-width: 80px;
+}
+
+.swap-action {
+  background: #ff4fa7;
+  border: none;
+  border-radius: 5px;
+  padding: 10px;
+  color: white;
+  text-align: center;
+  cursor: pointer;
+}
+
+.swap-action:hover {
+  background: ##777;
+}
+
+.swap-main-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
