@@ -20,52 +20,65 @@ const TokensList = (props) => {
 // add liquidity
 const addLiquidity = (
   account,
-  { token0, token1, manager },
+  { fromCurrency, toCurrency, manager },
   { managerAddress, poolAddress }
 ) => {
-  console.log(token0);
-  // making sure token0 and token1 isnt null
-  if (!token0 || !token1) {
+  // making sure token0 and token1 isnt nulls
+  if (!fromCurrency || !toCurrency) {
     return;
   }
+
+  console.log(fromCurrency.target);
+  console.log(toCurrency.target);
+
+  const abiCoder = new ethers.AbiCoder();
 
   // declare variables for test case
   const amount0 = ethers.parseEther("0.998976618347425280"); // WETH
   const amount1 = ethers.parseEther("5000"); // USDC
   const lowerTick = 84222;
   const upperTick = 86129;
-  const liquidity = ethers.BigNumber.from("1517882343751509868544");
-  const extra = ethers.defaultAbiCoder.encode(
+  const liquidity = BigInt("1517882343751509868544");
+  const extra = abiCoder.encode(
     ["address", "address", "address"],
-    [token0.address, token1.address, account]
+    [fromCurrency.target, toCurrency.target, account]
   );
 
-  console.log("here");
-
   Promise.all([
-    token0.allowance(account, managerAddress),
-    token1.allowance(account, managerAddress),
+    fromCurrency.allowance(account, managerAddress),
+    toCurrency.allowance(account, managerAddress),
   ])
     .then(([allowance0, allowance1]) => {
       return Promise.resolve()
         .then(() => {
           if (allowance0.lt(amount0)) {
-            return token0
+            return fromCurrency
               .approve(managerAddress, amount0)
-              .then((tx) => tx.wait());
+              .then((tx) => tx.wait())
+              .catch((err) => {
+                throw new Error(
+                  `Error in fromCurrency approve: ${err.message}`
+                );
+              });
           }
         })
         .then(() => {
           if (allowance1.lt(amount1)) {
-            return token1
+            return toCurrency
               .approve(managerAddress, amount1)
-              .then((tx) => tx.wait());
+              .then((tx) => tx.wait())
+              .catch((err) => {
+                throw new Error(`Error in toCurrency approve: ${err.message}`);
+              });
           }
         })
         .then(() => {
           return manager
             .mint(poolAddress, lowerTick, upperTick, liquidity, extra)
-            .then((tx) => tx.wait());
+            .then((tx) => tx.wait())
+            .catch((err) => {
+              throw new Error(`Error in manager mint: ${err.message}`);
+            });
         })
         .then(() => {
           alert("Liquidity added!");
@@ -73,7 +86,7 @@ const addLiquidity = (
     })
     .catch((err) => {
       console.error(err);
-      alert("Failed to add liquidity");
+      alert(`Failed to add liquidity: ${err.message}`);
     });
 };
 
@@ -125,6 +138,7 @@ export default function SwapBox(props) {
   const [manager, setManager] = useState();
 
   useEffect(() => {
+    // need to rewrite this function need ti async get signer
     setFromCurrency(
       new ethers.Contract(
         props.config.token0Address,
@@ -146,10 +160,19 @@ export default function SwapBox(props) {
         new ethers.BrowserProvider(window.ethereum).getSigner()
       )
     );
-  }, []);
+  }, [props.config]);
 
   const addLiquidity_ = () => {
-    console.log(fromCurrency);
+    console.log("from: " + fromCurrency);
+    console.log("to: " + toCurrency);
+    console.log("manager: " + manager);
+
+    // const cn = new ethers.Contract(
+    //   props.config.token0Address,
+    //   props.config.ABIs.ERC20,
+    //   new ethers.BrowserProvider(window.ethereum).getSigner()
+    // );
+    // console.log(cn.target);
 
     addLiquidity(
       metamaskContext.account,
