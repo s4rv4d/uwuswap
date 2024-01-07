@@ -2,6 +2,7 @@ import React from "react";
 import { useState, useEffect, useContext } from "react";
 import "./swapBox.css";
 import { MetaMaskContext } from "../../contexts/MetaMask";
+import { type } from "@testing-library/user-event/dist/type";
 
 const { ethers } = require("ethers");
 
@@ -51,7 +52,7 @@ const addLiquidity = (
     .then(([allowance0, allowance1]) => {
       return Promise.resolve()
         .then(() => {
-          if (allowance0.lt(amount0)) {
+          if (allowance0 < amount0) {
             return fromCurrency
               .approve(managerAddress, amount0)
               .then((tx) => tx.wait())
@@ -63,7 +64,7 @@ const addLiquidity = (
           }
         })
         .then(() => {
-          if (allowance1.lt(amount1)) {
+          if (allowance1 < amount1) {
             return toCurrency
               .approve(managerAddress, amount1)
               .then((tx) => tx.wait())
@@ -94,33 +95,42 @@ const addLiquidity = (
 const swap = (
   amountIn,
   account,
-  { tokenIn, manager, token0, token1 },
+  { tokenIn, manager, fromCurrency, toCurrency },
   { managerAddress, poolAddress }
 ) => {
-  const amountInWei = ethers.utils.parseEther(amountIn);
-  const extra = ethers.utils.defaultAbiCoder.encode(
+  const abiCoder = new ethers.AbiCoder();
+  const amountInWei = ethers.parseEther(amountIn);
+
+  const extra = abiCoder.encode(
     ["address", "address", "address"],
-    [token0.address, token1.address, account]
+    [fromCurrency.target, toCurrency.target, account]
   );
 
-  tokenIn
-    .allowance(account, managerAddress)
-    .then((allowance) => {
-      if (allowance.lt(amountInWei)) {
-        return tokenIn
-          .approve(managerAddress, amountInWei)
-          .then((tx) => tx.wait());
-      }
-    })
-    .then(() => {
-      return manager.swap(poolAddress, extra).then((tx) => tx.wait());
-    })
-    .then(() => {
-      alert("Swap succeeded!");
+  Promise.all([tokenIn.allowance(account, managerAddress)])
+    .then(([allowance]) => {
+      return Promise.resolve()
+        .then(() => {
+          if (allowance < amountInWei) {
+            return tokenIn
+              .approve(managerAddress, amountInWei)
+              .then((tx) => tx.wait());
+          }
+        })
+        .then(() => {
+          return manager
+            .swap(poolAddress, extra)
+            .then((tx) => tx.wait())
+            .catch((err) => {
+              throw new Error(`Error in manager swap: ${err.message}`);
+            });
+        })
+        .then(() => {
+          alert("Swap succeeded!");
+        });
     })
     .catch((err) => {
       console.error(err);
-      alert("Failed!");
+      alert(`Failed to swap: ${err.message}`);
     });
 };
 
@@ -139,41 +149,42 @@ export default function SwapBox(props) {
 
   useEffect(() => {
     // need to rewrite this function need ti async get signer
-    setFromCurrency(
-      new ethers.Contract(
-        props.config.token0Address,
-        props.config.ABIs.ERC20,
-        new ethers.BrowserProvider(window.ethereum).getSigner()
-      )
-    );
-    setToCurrency(
-      new ethers.Contract(
-        props.config.token1Address,
-        props.config.ABIs.ERC20,
-        new ethers.BrowserProvider(window.ethereum).getSigner()
-      )
-    );
-    setManager(
-      new ethers.Contract(
-        props.config.managerAddress,
-        props.config.ABIs.Manager,
-        new ethers.BrowserProvider(window.ethereum).getSigner()
-      )
-    );
+
+    const init = async () => {
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+
+        const fromCurrencyToken = new ethers.Contract(
+          props.config.token0Address,
+          props.config.ABIs.ERC20,
+          signer
+        );
+
+        const toCurrencyToken = new ethers.Contract(
+          props.config.token1Address,
+          props.config.ABIs.ERC20,
+          signer
+        );
+
+        const managerContract = new ethers.Contract(
+          props.config.managerAddress,
+          props.config.ABIs.Manager,
+          signer
+        );
+
+        setFromCurrency(fromCurrencyToken);
+        setToCurrency(toCurrencyToken);
+        setManager(managerContract);
+      } catch (error) {
+        console.error("Error in creating contract: ", error);
+      }
+    };
+
+    init();
   }, [props.config]);
 
   const addLiquidity_ = () => {
-    console.log("from: " + fromCurrency);
-    console.log("to: " + toCurrency);
-    console.log("manager: " + manager);
-
-    // const cn = new ethers.Contract(
-    //   props.config.token0Address,
-    //   props.config.ABIs.ERC20,
-    //   new ethers.BrowserProvider(window.ethereum).getSigner()
-    // );
-    // console.log(cn.target);
-
     addLiquidity(
       metamaskContext.account,
       { fromCurrency, toCurrency, manager },
@@ -186,7 +197,7 @@ export default function SwapBox(props) {
     swap(
       amount1.toString(),
       metamaskContext.account,
-      { tokenIn: fromCurrency, manager, fromCurrency, toCurrency },
+      { tokenIn: toCurrency, manager, fromCurrency, toCurrency },
       props.config
     );
   };
