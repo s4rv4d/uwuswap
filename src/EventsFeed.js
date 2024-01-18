@@ -1,5 +1,6 @@
 import { useContext, useEffect, useReducer, useState } from "react";
 import { MetaMaskContext } from "./contexts/MetaMask";
+import config from "./config.js";
 
 const { ethers } = require("ethers");
 const PoolABI = require("./abi/Pool.json");
@@ -83,7 +84,6 @@ const eventsReducer = (state, action) => {
 };
 
 const EventsFeed = (props) => {
-  const config = props.config;
   const metamaskContext = useContext(MetaMaskContext);
   const [events, setEvents] = useReducer(eventsReducer, []);
   const [pool, setPool] = useState();

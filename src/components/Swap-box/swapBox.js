@@ -3,10 +3,14 @@ import { useState, useEffect, useContext } from "react";
 import "./swapBox.css";
 import { MetaMaskContext } from "../../contexts/MetaMask";
 import { type } from "@testing-library/user-event/dist/type";
+import config from "../../config.js";
+import debounce from "../../library/debounce.js";
 
 const { ethers } = require("ethers");
 
 const tokenList = ["WETH", "USDC"];
+const uint256Max = ethers.MaxUint256;
+const pairs = [["WETH", "USDC"]];
 
 const TokensList = (props) => {
   return (
@@ -21,16 +25,13 @@ const TokensList = (props) => {
 // add liquidity
 const addLiquidity = (
   account,
-  { fromCurrency, toCurrency, manager },
+  { token0, token1, manager },
   { managerAddress, poolAddress }
 ) => {
   // making sure token0 and token1 isnt nulls
-  if (!fromCurrency || !toCurrency) {
+  if (!token0 || !token1) {
     return;
   }
-
-  console.log(fromCurrency.target);
-  console.log(toCurrency.target);
 
   const abiCoder = new ethers.AbiCoder();
 
@@ -42,34 +43,32 @@ const addLiquidity = (
   const liquidity = BigInt("1517882343751509868544");
   const extra = abiCoder.encode(
     ["address", "address", "address"],
-    [fromCurrency.target, toCurrency.target, account]
+    [token0.target, token1.target, account]
   );
 
   Promise.all([
-    fromCurrency.allowance(account, managerAddress),
-    toCurrency.allowance(account, managerAddress),
+    token0.allowance(account, managerAddress),
+    token1.allowance(account, managerAddress),
   ])
     .then(([allowance0, allowance1]) => {
       return Promise.resolve()
         .then(() => {
           if (allowance0 < amount0) {
-            return fromCurrency
+            return token0
               .approve(managerAddress, amount0)
               .then((tx) => tx.wait())
               .catch((err) => {
-                throw new Error(
-                  `Error in fromCurrency approve: ${err.message}`
-                );
+                throw new Error(`Error in token0 approve: ${err.message}`);
               });
           }
         })
         .then(() => {
           if (allowance1 < amount1) {
-            return toCurrency
+            return token1
               .approve(managerAddress, amount1)
               .then((tx) => tx.wait())
               .catch((err) => {
-                throw new Error(`Error in toCurrency approve: ${err.message}`);
+                throw new Error(`Error in token1 approve: ${err.message}`);
               });
           }
         })
@@ -95,7 +94,7 @@ const addLiquidity = (
 const swap = (
   amountIn,
   account,
-  { tokenIn, manager, fromCurrency, toCurrency },
+  { tokenIn, manager, token0, token1 },
   { managerAddress, poolAddress }
 ) => {
   const abiCoder = new ethers.AbiCoder();
@@ -103,7 +102,7 @@ const swap = (
 
   const extra = abiCoder.encode(
     ["address", "address", "address"],
-    [fromCurrency.target, toCurrency.target, account]
+    [token0.target, token1.target, account]
   );
 
   Promise.all([tokenIn.allowance(account, managerAddress)])
@@ -134,18 +133,58 @@ const swap = (
     });
 };
 
+const SwapInput = ({ token, amount, setAmount, disabled, readOnly }) => {
+  return (
+    <fieldset disabled={disabled}>
+      <input
+        type="type"
+        id={token + "_amount"}
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        className="swap-input"
+        placeholder="0.0"
+        readOnly={readOnly}
+      />
+      <label htmlFor={token + "_amount"}>{token}</label>
+    </fieldset>
+  );
+};
+
+const ChangeDirectionButton = ({ zeroForOne, setZeroForOne, disabled }) => {
+  return (
+    <button
+      className=""
+      onClick={(e) => {
+        e.preventDefault();
+        setZeroForOne(!zeroForOne);
+      }}
+      disabled={disabled}
+    >
+      🔄
+    </button>
+  );
+};
+
 export default function SwapBox(props) {
   const metamaskContext = useContext(MetaMaskContext);
   const enabled = metamaskContext.status === "connected";
 
-  // just for testing
-  const amount0 = 0.008396714242162444;
-  const amount1 = 42;
+  const pair = pairs[0];
 
-  const [amount, setAmount] = useState("");
-  const [fromCurrency, setFromCurrency] = useState();
-  const [toCurrency, setToCurrency] = useState();
+  // just for testing
+  // const amount0 = 0.008396714242162444;
+  // const amount1 = 42;
+
+  // useState variables
+  const [zeroForOne, setZeroForOne] = useState(true);
+  const [amount, setAmount] = useState(""); // used for testing
+  const [amount0, setAmount0] = useState(0);
+  const [amount1, setAmount1] = useState(0);
+  const [token0, setToken0] = useState();
+  const [token1, setToken1] = useState();
   const [manager, setManager] = useState();
+  const [quoter, setQuoter] = useState();
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     // need to rewrite this function need ti async get signer
@@ -155,27 +194,34 @@ export default function SwapBox(props) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
 
-        const fromCurrencyToken = new ethers.Contract(
-          props.config.token0Address,
-          props.config.ABIs.ERC20,
+        const token0Token = new ethers.Contract(
+          config.token0Address,
+          config.ABIs.ERC20,
           signer
         );
 
-        const toCurrencyToken = new ethers.Contract(
-          props.config.token1Address,
-          props.config.ABIs.ERC20,
+        const token1Token = new ethers.Contract(
+          config.token1Address,
+          config.ABIs.ERC20,
           signer
         );
 
         const managerContract = new ethers.Contract(
-          props.config.managerAddress,
-          props.config.ABIs.Manager,
+          config.managerAddress,
+          config.ABIs.Manager,
           signer
         );
 
-        setFromCurrency(fromCurrencyToken);
-        setToCurrency(toCurrencyToken);
+        const quoterContract = new ethers.Contract(
+          config.quoterAddress,
+          config.ABIs.Quoter,
+          signer
+        );
+
+        setToken0(token0Token);
+        setToken1(token1Token);
         setManager(managerContract);
+        setQuoter(quoterContract);
       } catch (error) {
         console.error("Error in creating contract: ", error);
       }
@@ -187,7 +233,7 @@ export default function SwapBox(props) {
   const addLiquidity_ = () => {
     addLiquidity(
       metamaskContext.account,
-      { fromCurrency, toCurrency, manager },
+      { token0, token1, manager },
       props.config
     );
   };
@@ -197,9 +243,44 @@ export default function SwapBox(props) {
     swap(
       amount1.toString(),
       metamaskContext.account,
-      { tokenIn: toCurrency, manager, fromCurrency, toCurrency },
+      { tokenIn: token1, manager, token0, token1 },
       props.config
     );
+  };
+
+  // helper funcs
+  const updateAmountOut = debounce((amount) => {
+    if (amount === 0 || amount === "0") {
+      return;
+    }
+
+    setLoading(true);
+
+    quoter.callStatic
+      .quote({
+        pool: config.poolAddress,
+        amountIn: ethers.parseEther(amount),
+        zeroForOne: zeroForOne,
+      })
+      .then(({ amountOut }) => {
+        zeroForOne
+          ? setAmount1(ethers.formatEther(amountOut))
+          : setAmount0(ethers.formatEther(amountOut));
+        setLoading(false);
+      })
+      .catch((err) => {
+        zeroForOne ? setAmount1(0) : setAmount0(0);
+        setLoading(false);
+        console.error(err);
+      });
+  });
+
+  const setAmount_ = (setAmountFn) => {
+    return (amount) => {
+      amount = amount || 0; // null checks
+      setAmountFn(amount);
+      updateAmountOut(amount);
+    };
   };
 
   return (
@@ -215,7 +296,46 @@ export default function SwapBox(props) {
 
         {/* swap body */}
         <div className="swap-body">
-          <div className="swap-input-container">
+          {/* token0 input */}
+          <SwapInput
+            amount={zeroForOne ? amount0 : amount1} // token0 (ETH) for token1 (USDC)
+            disabled={!enabled || loading}
+            readOnly={false}
+            setAmount={setAmount_(zeroForOne ? setAmount0 : setAmount1)}
+            token={zeroForOne ? pair[0] : pair[1]}
+          />
+
+          {/* change */}
+          <ChangeDirectionButton
+            zeroForOne={zeroForOne}
+            setZeroForOne={setZeroForOne}
+            disabled={!enabled || loading}
+          />
+
+          {/* token1 input */}
+          <SwapInput
+            amount={zeroForOne ? amount1 : amount0}
+            disabled={!enabled || loading}
+            readOnly={true}
+            token={zeroForOne ? pair[1] : pair[0]}
+          />
+
+          {/* swap button */}
+          <button
+            disabled={!enabled || loading}
+            className="swap-action"
+            onClick={swap_}
+          >
+            Swap
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// milestone 1
+/* <div className="swap-input-container">
             <input
               type="number"
               value={amount1}
@@ -237,34 +357,4 @@ export default function SwapBox(props) {
             />
 
             <TokensList selected="WETH" />
-          </div>
-
-          {/* swap button */}
-          <button disabled={!enabled} className="swap-action" onClick={swap_}>
-            Swap
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// {/* <select
-//               value={fromCurrency}
-//               onChange={(e) => setFromCurrency(e.target.value)}
-//               className="swap-dropdown"
-//             >
-//               <option>ETH</option>
-//               <option>DAI</option>
-//               {/* Add other currencies as needed */}
-//             </select> */}
-
-// {/* <select
-//               value={toCurrency}
-//               onChange={(e) => setToCurrency(e.target.value)}
-//               className="swap-dropdown"
-//             >
-//               <option>ETH</option>
-//               <option>DAI</option>
-//               {/* Add other currencies as needed */}
-//             </select> */}
+          </div> */
